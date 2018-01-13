@@ -1,0 +1,74 @@
+\This is an FR schedule
+\Filesname, Tutor06.mpc
+\Date July 7, 2017
+
+\Inputs
+^LeftLever = 1
+
+\Outputs
+^House = 1
+^Reward = 2 \Pellet dispenser
+
+\DEFINED VARIABLES
+\ A = NUMBER OF RESPONSES
+\ B = NUMBER OF PELLETS
+\ M = MINUTES
+\ X = FIXED RATIO
+\ N = SESSION TIMER
+\ Q = MAXIMUM REWARD
+
+------------------------------------------------------------------------------------
+S.S.1,	\Main control logic for FR
+
+S1,
+	1"": M = 1; SET X = 5; SET Q = 5 ---> S2	\Remove second quote
+
+S2,
+	#START: ON ^Houe ---> S3
+
+S3,
+	X#R^LeftLever: ON ^Reward; Z1 ---> SX
+	Z2: ---> S1
+
+------------------------------------------------------------------------------------
+S.S2,
+
+S1,
+	#START: SHOW 2, RESP, A ---> S2
+
+S2,
+	#R^LeftLever: ADD A; SHOW 2, RESP, A ---> SX
+	#Z2: ---> S1
+
+------------------------------------------------------------------------------------
+S.S.3,
+
+S1,
+	#Z1: ADD B; SHOW 3, REWARD, B ---> S2
+
+S2,
+	0.05"": OFF ^Reward ---> S1
+
+------------------------------------------------------------------------------------
+S.S.4,	\Session timer
+
+S1,
+	#START: SHOW 1, Sess_n, N ---> S2
+
+S2,
+	1"": ADD N; SHOW 1, Sess_n, N/60;
+		IF N/60 < M [@True, @False]
+		--\If session timer is < M, continue
+			@True: IF Q < B [@2True, @2False]
+			--\If animal has had enough rewards, stop
+				@2True: Z2 ---> S3
+				@2False: ---> SX
+				--\When elapsed time = M so back to S.S.1 and wait
+			@False: Z2 ---> S3
+
+S3,
+	3"": ---> STOPABORT
+
+
+
+

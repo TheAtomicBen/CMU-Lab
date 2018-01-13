@@ -1,0 +1,12 @@
+\This is a sample program
+\Filename, medpcTraining.mpc
+\Date August 14, 2017
+
+
+^House	=	1
+
+S.S.1,
+S1,							\Begin State 1
+1": ON ^House ---> 2		\Wait 1 secon then Go to State 2
+S2,							\Begine State 2
+5": OFF ^House ---> 1		\Turn House light on for 5 seconds, then Go bacl to State 1

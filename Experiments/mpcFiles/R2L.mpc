@@ -1,0 +1,113 @@
+\Programmer: Ben Libman
+\Date: 8.15.17
+\Simple Rich to Lean Procedure
+\Filename: R2L.mpc
+
+\Variables
+\	Inputs
+		#R^Lever	=	1
+\
+\	Outputs
+		^Light		=	1
+		^Hopper		=	2
+
+\	DEFINED VARIABLES
+\		A(1)		= 	Current ratio counter (flushed after each trial)
+\		Rich_FR		=	5
+\		Lean_FR		=	50
+\		R_Lhold		=	15"								--Amount of time that rich ratio must be completed before auto blackout
+\		L_Lhold		=	300"							--Amount of time that lean ratio must be completed before auto blackout
+\		blackout	=	2								--Blackout period hold after Sr is deliverd
+\		Rich_SD		=	1.5" flashing Light
+\		Lean_SD		=	Solid Light
+\		Ratio		=	Current ratio in progress
+\
+\	DATA
+\		B(1)	=	Rich_count 
+\		B(2)	=	Lean_Count
+\		D(1)	=	Total trials
+\		A(0)	=	Current ratio
+list D = 5, 5, 50, 50, 5, 50
+DIM A = 10
+DIM B = 10
+Dim D = 10
+DIM C = 2000
+
+S.S.1,
+	S1, 														\Start commands choose first FR, and contingency
+		#K1: list A(0) = D(H); ON ^Light;
+			if A(0) = 5 [@True, @ False]
+				@True: Z1 ---> S2								\Z1
+				@False: Z2 ---> S3								\Z3
+
+	S2, 														\Rich FR
+		#R^Lever: ADD A(1), B(1);								\A(1) = Current Ratio Count B(1) = Rich ratio count
+			if A(1) = 5 [@True, @False]
+				@True: Z2; set A(1) = 0; ON ^Hopper; OFF ^Light; Z3 ---> S4		\Z2, Z3
+				@False: ---> SX
+
+		15": Z2; set A(1) = 0; OFF ^Light; Z4 ---> S4			\Z2, Z4
+
+	S3, 														\Lean FR
+		#R^Lever: ADD A(1), B(2);								\B(2) = Lean ratio count
+			if A(2) = 50 [@True, @False]
+				@True: set A(1) = 0; ON ^Hopper; OFF ^Light; Z3 ---> S4	\Z3
+				@False: ---> SX
+
+		300":set A(2) = 0; OFF ^Light; Z4 ---> S4			\Z4
+
+	S4,
+		0.05": OFF ^Hopper; ADD D(1);							\D(1) = trial count
+			if D(1) = 61 [@True, @False]
+				@True: SET C(i) = -987.987 ---> STOPABORTFLUSH						\END SESSION CRIT
+				@False: ---> S5
+
+	S5,
+		1.95": list A(0) = D(H); ON ^Light;
+			if A(0) = 5 [@True, @ False]
+				@True: Z1 ---> S2								\Z1
+				@False: Z2 ---> S3								\Z2
+
+S.S.2,															\Flashing light									
+	S1,
+		#Z1: ---> S2											\Z1
+	S2,
+		1.5": OFF ^Light ---> S3
+		#Z3: ---> S1											\Z3
+		#Z4: ---> S1											\Z4
+
+	S3,
+		1.5": ON ^Light ----> S2
+		#Z3: ---> S1											\Z3
+		#Z4: ---> S1											\Z4
+
+S.S.3,														\Timer and shows
+	S1,
+		#K1: ---> S2
+
+	S2,
+		0.01": ADD t;
+			show 1, T(M), t/6000;
+			show 2, Ratio, A(0);
+			show 3, Trials, D(1) ---> SX
+
+
+S.S.4,														\Data ---> SR, Blackout, Start trial, Resps
+	S1,
+		#Z1: set C(i) = t + 0.05; ADD i ---> S2
+		#Z2: set C(i) = t + 0.5; ADD i ---> S2
+	S2,
+		#R^Lever: set C(i) = t + 0.1 ADD i ---SX
+		#Z1: set C(i) = t + 0.05; ADD i ---> SX				\Ratio type
+		#Z2: set C(i) = t + 0.5; ADD i ---> SX				\Ratio type
+		#Z3: set C(i) = t + 0.2; ADD i ---> SX
+		#Z4: set C(i) = t + 0.21; ADD i ---> SX
+
+\Z1 = Start Rich
+\Z2 = Start Lean
+\Z3 = Deliver Pellet
+\Z4 = Blackout
+
+
+
+

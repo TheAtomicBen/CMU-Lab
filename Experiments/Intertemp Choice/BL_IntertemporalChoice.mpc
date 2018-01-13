@@ -1,0 +1,151 @@
+\01/08/2018
+\Ascending-Decending Intertemporal Choice
+\Basha Libman
+\Eric French
+\------------------------------------------------------------------------------
+              \
+/Inputs:      \-- A Array --------------------|--B Array (Flush) -----------|--Z Pulse--------|--C array---- 
+^llever = 1   \  A(0) = sess delay            |  B(0) = curr list           |  Z(1) = Large   |  C(0) = 
+^rlever = 2   \  A(1) = trial num             |  B(1) = trial type          |  Z(2) = Small   |  C(1) = 
+              \  A(2) = num large             |  B(2) = delay pointer       |  Z(3) = Choice  |  C(2) = 
+/Outpts:      \  A(3) = num small             |  B(3) = iti pointer         |  Z(4) = Delay   |  C(3) = 
+^lstim = 1    \  A(4) = force large latencie  |  B(4) = delay 0.25"         |  Z(5) = 1 Sr    |  C(4) = 
+^rstim = 2    \  A(5) = force small latencie  |  B(5) = flashing light      |  Z(6) = 3 Sr    |  C(5) = 
+^sr = 3       \  A(6) = prop large            |  B(6) = pellet pointer      |  Z(7) = ITI     |  C(6) = 
+^hl = 7       \                               |  B(7) = ITI duration        |                 |  C(7) = 
+              \                               |  B(8) = Force large pointer |
+              \                               |  B(9) = Force small pointer |
+              \                               |  B(10) = Force large count  |
+              \                               |  B(11) = Force small count  |            
+
+
+\Dim
+Dim A = 8
+Dim B = 8
+
+\Lists:
+List D = 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3
+List E = 2, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3
+
+DISCCOLLUMNS = 1
+DISCVARS = A, C
+\------------------------------------MEAT--------------------------------------------------------------------------
+
+S.S.1,  \ Contingencies
+    S1, \ Start command
+        #K1: Set A(0) = 0 ---> S2
+        #K2: Set A(0) = 1, B(4) = 4 ---> S2
+        #K3: Set A(0) = 3, B(4) = 12 ---> S2
+        #K4: Set A(0) = 6, B(4) = 24 ---> S2
+        #K5: Set A(0) = 12, B(4) = 48 ---> S2
+        #K6: Set A(0) = 24, B(4) = 96 ---> S2
+
+    S2, \ 30s buffer, current list
+        29.9": withpi = 5000 [@list1, @list2] \ withpi chooses a random number between 1 and 10000, if > 5000 List 1, else List 2
+            @list1: Set B(0) = 1; list B(1) = D(x) ---> S3
+            @list2: Set B(0) = 2; list B(1) = E(x) ---> S3
+    
+    S3, \go to first trial
+        0.1": on ^hl; if B(1) = 1 [@large, @small]
+            @large: on ^lstim; Z1 ---> S4
+            @small: on ^rstim; Z2 ---> S5
+    
+    S4, \ Force large
+        #r^llever: off ^lstim; if A(0) = 0 [@pell, @delay]
+            @pell: on ^sr; Z5 ---> S8
+            @delay: Set B(5) = 1; Z4 ---> S7
+
+    S5, \ Force small
+        #r^rlever: off ^rstim; on ^sr; Z6 ---> S10
+
+    S6, \ Free choice
+        #r^llever: off ^lstim, ^rstim; Add A(2); Set A(6) = A(2)/(A(2)+A(3)); if A(0) = 0 [@pell, @delay]
+            @pell: on ^sr; Z5 ---> S8
+            @delay: Set B(5) = 1; Z4 ---> S7
+
+        #r^rlever: off ^lstim, ^rstim; Add A(3); Set A(6) = A(2)/(A(2)+A(3)); on ^sr; Z6 ---> S10
+    
+    S7, \ Delay to Sr
+        0.25": Add B(2); if B(2) = B(4) [@pell, @stay]
+            @pell: Set B(2) = 0; off ^lstim; on ^sr; Z5 ---> S8
+            @stay: if B(5) = 1 [@on, @off]
+                @on: on ^lstim; Set B(5) = 0 ---> SX 
+                @off: off ^lstim; Set B(5) = 1 ---> SX
+    
+    S8, \ Deliver large (a)
+        0.05": off ^sr; Add B(6); if B(6) = 3 [@iti, @pell]
+            @iti: Set B(6) = 0, B(7) = 45 - A(0); Add A(1); Z7; if A(1) = 36 [@done, @stay]
+                @done: Set C(i) = -987.987 ---> STOPABORTFLUSH
+                @stay: ---> S11
+            @pell: ---> S9
+
+    S9, \ Deiler large (b)
+        0.25": on ^sr ---> S8
+
+    S10,\ Deliver small
+        0.05": off ^sr; Set B(7) = 45; Add A(1); Z7; if A(1) = 36 [@done, @stay]
+            @done: Set C(i) = -987.987 ---> STOPABORTFLUSH
+            @stay: ---> S11
+
+    S11,\ ITI
+        1": Add B(3); if B(3) = B(7)-1 [@next, @stay]
+            @next: Set B(3) = 0; if B(0) = 1 [@list1, @list2]
+                @list1: list B(1) = D(x) ---> S12
+                @list2: list B(1) = E(x) ---> S12
+            
+            @stay: ---> SX
+
+    S12, \ITI and decide next trial
+        1": if B(1) = 1 [@large, @no]
+            @large: on ^lstim; Z1 ---> S4
+            @no: if B(1) = 2 [@small, @choice]
+                @small: on ^rstim; Z2 ---> S5
+                @choice: on ^lstim, ^rstim; Z3 ---> S6
+
+\------Record Data-----------------------------------------------------------------------------
+S.S.2,
+    S1,
+        #Z1: ---> S2
+        #Z2: ---> S3
+    S2,
+        0.1": Add B(8) ---> SX
+        #r^llever: Add B(10); Set A(4) = (B(8)/10)/B(10) ---> S1
+    S3,
+        0.1": Add B(9) ---> SX
+        #r^rlever: Add B(11); Set A(5) = (B(9)/10)/B(11) ---> S1
+
+\------Timer and Shows-------------------------------------------------------------------------
+S.S.3,
+    S1,
+        #Z1: ---> S2
+        #Z2: ---> S2
+    S2,
+        0.01": Add t; if t/6000 >= 60 [@done, @stay]
+            @done: Set C(i) = -987.987 ---> STOPABORTFLUSH
+            @stay: Show 1, Delay, A(0);
+                   Show 2, Trial, A(1);
+                   Show 3, P|large, A(6);
+                   Show 4, Lat Lrg, A(4);
+                   Show 5, Lat Sml, A(5);
+                   Show 6, T[m], t/6000 ---> SX
+
+\------C Array---------------------------------------------------------------------------------
+S.S.4,
+    S1, 
+        #Z1: Set C(i) = t+.30; Add i ---> S2
+        #Z2: Set C(i) = t+.31; Add i ---> S2
+
+    S2,
+        #Z1: Set C(i) = t+.30; Add i ---> SX
+        #Z2: Set C(i) = t+.31; Add i ---> SX
+        #Z3: Set C(i) = t+.33; Add i ---> SX
+        #Z4: Set C(i) = t+.40; Add i ---> SX
+        #Z5: Set C(i) = t+.23; Add i ---> SX
+        #Z6: Set C(i) = t+.21; Add i ---> SX
+        #Z7: Set C(i) = t+.41; Add i ---> SX
+
+
+
+
+
+

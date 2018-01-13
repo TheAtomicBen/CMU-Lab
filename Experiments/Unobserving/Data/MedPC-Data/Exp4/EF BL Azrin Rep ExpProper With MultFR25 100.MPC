@@ -1,0 +1,125 @@
+\ FR Unobserving Procedure (Based on Thompson 1964)            |
+\ Programmer: Eric French                                      |
+\ Date: 12.26.2017                                             |
+\ Description: Mult FR25 FR100                                 |
+\              Components alternate Every 10 Pellets or 5min   |
+\              Ten Total Components                            |
+\              FR25 = Flashing Light                           |
+\              FR100 = Solid Light                             |
+\              Unobserving (Right) is always solid             |
+\-------------------------------------------------------------------------------------------------------------------------
+^LLever = 1     \|--A Array (Data)---|- B Array (Flush)----|-Z Pulse------------|- C Array Markers -----------------------
+^RLever = 2     \| (0) = FR25  Resp  | (0) = Mult Timer    | 1 = Start FR 25    | Start FR25   .30   Pellet FR25     .20
+^LStim  = 1     \| (1) = FR100 Resp  | (1) = Mult Counter  | 2 = Start FR 100   | Start FR100  .31   Pellet FR100    .21
+^RStim  = 2     \| (2) = FR25  rfr   | (2) = [1=25,2=100]  | 3 = Deliver Pellet | Left  FR25   .10   End Unobs FR25  .40
+^pellet = 3     \| (3) = FR100 rfr   | (3) = FR25 Counter  | 4 = End Pell       | Left  FR100  .11   End Unobs FR100 .41
+^HL     = 7     \| (4) = FR25  Time  | (4) = FR100 Counter | 5 = Begin Blackout | Unobs FR25   .12
+Dim A   = 9     \| (5) = FR100 Time  | (5) = rfr in Comp   | 6 = End Blackout   | Unbos FR100  .13
+Dim B   = 8     \| (6) = FR25  Unobs | (6) = New Comp      | 7 = Left for Tone  | Left  BO25   .14               
+Dim C   = 10000 \| (7) = FR100 Unobs |                     | 8 = End Session    | Left  BO100  .15
+    DISKCOLUMNS =   1    \                                                      | Right BO25   .16               
+    DISKVARS    =   A, C \                                                      | Right BO100  .17
+S.S.1,\======================================================================================================
+    S1,
+        #Start: ---> S2              
+    S2,\------------------------------------------------------------------------------ 30-s Warm Up
+        30": ~InitANL926;~;~SetFreq(MG, BOX, 3302);~;
+             ~SetAmp(MG, BOX, 90);~;
+             ~SetRF(MG, BOX, 10);~; Set B(2)=1, C(i) = T+.30; Add i; Z1 ---> S3
+    S3,\------------------------------------------------------------------------------- Mult Schedule Control
+        .1": ADD B(0); If (B(0)>3000) Or (B(6)=1) [@Done,@Stay]
+            @Done: Set B(0)=0, B(5)=0, B(6)=0; ADD B(1); If B(1)=10 [@End,@Stay] 
+                @End: Z8 ---> SX
+                @Stay: If B(2)=1 [@25,@100]                 
+                    @25:  Set B(2)=2, C(i) = T+.31; Add i; Z2 ---> SX
+                    @100: Set B(2)=1, C(i) = T+.30; Add i; Z1 ---> SX    
+            @Stay: If B(2)=1 [@25,@100]         
+                    @25:  Add A(4) ---> SX   
+                    @100: Add A(5) ---> SX                
+S.S.2,\======================================================================================================
+    S1,
+        #Z1: ---> S2
+    S2,\---------------------------------------------------------------- Fixed Ratio Control                                                  
+        #R^LLever: If B(2)=1 [@25,@100] 
+            @25: Set C(i) = T+.10; ADD i, A(0), B(3); If B(3)= 25 [@Pell,@Nope]
+                @Pell:Set C(i) = T+.20; Add i, A(2), B(5); Set B(3)=0;
+                   On^Pellet; Z3 ---> S4                
+                @Nope:        Z7 ---> SX
+            @100: Set C(i) = T+.11; Add i, A(1), B(4); If B(4)= 100 [@Pell,@Nope]
+                @Pell: Set C(i) = T+.21; Add i, A(3), B(5); Set B(4)=0;
+                   On^Pellet; Z3 ---> S4
+                @Nope:        Z7 ---> SX 
+        #R^RLever: If B(2)=1 [@25,@100] 
+            @25:  Set C(i) = T+.12; Add i, A(6); Z5 ---> S3 
+            @100: Set C(i) = T+.13; Add i, A(7); Z5 ---> S3
+    S3,\---------------------------------------------------------------- Blackout
+        10":If B(2)=1 [@25,@100]
+            @25:  Set C(i) = T+.40; Add i; Z6 ---> S2
+            @100: Set C(i) = T+.41; Add i; Z6 ---> S2    
+        #R^LLever: If B(2)=1 [@25,@100]
+            @25:  Set C(i) = T+.14; Add i ---> SX 
+            @100: Set C(i) = T+.15; Add i ---> SX 
+        #R^RLever: If B(2)=1 [@25,@100]
+            @25:  Set C(i) = T+.16; Add i ---> SX 
+            @100: Set C(i) = T+.17; Add i ---> SX 
+    S4,\---------------------------------------------------------------- Pellet Delivery
+        .05": Off^Pellet ---> S5
+    S5,\---------------------------------------------------------------- 2-s Buffer
+        2": On^HL,^LStim; On^RStim; If B(5)=10 [@Next,@Stay]
+            @Next: Set B(6)=1; Z4 ---> S2
+            @Stay:             Z4 ---> S2            
+S.S.3,\======================================================================================================
+    S1,\---------------------------------------------------------------- Tone Control 
+        #Z3: ~ToneOn (MG, Box);~  ---> S2                    
+        #Z5: ~ToneOn (MG, Box);~  ---> S2 
+        #Z7: ~ToneOn (MG, Box);~  ---> S2
+    S2,                                             
+        .1": ~ToneOff(MG, Box);~ ---> S1
+S.S.4,\======================================================================================================
+    S1,\---------------------------------------------------------------- Stimulus Control    
+        #Z1: On^HL,^LStim,^RStim ---> S2
+    S2,\------------------------------------------FR25                                    
+        .5": Off^LStim ---> S3
+        #Z2: On^LStim  ---> S4     
+        #Z3: Off^LStim,^RStim ---> S5   
+        #Z5: Off^HL,^LStim,^RStim ---> S5   
+    S3,
+        .5": On^LStim  ---> S2 
+        #Z2: On^LStim  ---> S4
+        #Z3: Off^LStim,^RStim ---> S5         
+        #Z5: Off^HL,^LStim,^RStim ---> S5                               
+    S4,\------------------------------------------FR100
+        #Z1: ---> S2
+        #Z3: Off^LStim,^RStim ---> S5 
+        #Z5: Off^HL,^LStim,^RStim ---> S5
+    S5,\------------------------------------------Blackout 
+        #Z4: ON^LStim,^RStim; If B(2)=1 [@25,@100]
+            @25:  ---> S2
+            @100: ---> S4       
+        #Z6: On^HL,^LStim,^RStim; If B(2)=1 [@25,@100]
+            @25:  ---> S2
+            @100: ---> S4 
+S.S.5,\======================================================================================================
+    S1,\---------------------------------------------------------------- Shows
+        #Z1: ---> S2
+    S2,
+        .01": ADD T;  Show 1, T[m],     T/6000;   
+                      Show 2, 25Rate,  (A(0)/((A(4)/10)+.001))*60;
+                      Show 3, 100Rate, (A(1)/((A(5)/10)+.001))*60;   
+                      Show 4, 25Pell,   A(2);
+                      Show 5, 100Pell,  A(3);
+                      Show 6, 25Unobs,  A(6);
+                      Show 7, 100Unobs, A(7);
+                      Show 8, Comp,     B(1) ---> SX
+S.S.6,\======================================================================================================
+    S1,\---------------------------------------------------------------- End Session Command
+        #Z8: Set A(0)=A(0)*-1, A(1)=A(1)*-1, 
+                 A(2)=A(2)*-1, A(3)=A(3)*-1, 
+                 A(4)=A(4)*-1, A(5)=A(5)*-1, 
+                 A(6)=A(6)*-1, A(7)=A(7)*-1,                                  
+                 B(0)=B(0)*-1, B(1)=B(1)*-1,     
+                 B(2)=B(2)*-1, B(3)=B(3)*-1,
+                 B(4)=B(4)*-1, B(5)=B(5)*-1,
+                 B(6)=B(6)*-1, C(i) = -987.987;  ~ToneOff(MG, Box);~ ---> STOPABORTFLUSH      
+\============================================================================================================ ---> END PROGRAM
+                                             
