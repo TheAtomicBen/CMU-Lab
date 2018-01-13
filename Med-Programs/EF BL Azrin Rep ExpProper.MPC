@@ -1,0 +1,92 @@
+\ FR Unobserving Procedure (Based on Thompson 1964)                                |
+\ Programmer: Eric French                                                          |
+\ Date: 9.26.2017                                                                  |
+\ Description: Two Phases (FR Training and Unobserving)                            |
+\              Both Phases: 2 hr Session, HL on, LStim on                          |
+\                           Single Pellet for FR Completion                        |
+\                           HL On, Stimuli Off for two 2 following Pellet          |
+\              FR Training: Only the Left Lever is active                          | 
+\                           FR 5 - 20                                              |
+\              Unobserving: Right Stim is On                                       |
+\                           Single Right response produces 30-s Blackout           |
+\                           During Blackout Levers inactive and all Stim are Off   |
+\                           FR 25 - 350                                            | 
+\-----------------------------------------------------------------------------------
+^LLever = 1  \|--A Array ----------------|-Z Pulse and C Array ---|
+^RLever = 2  \| (0) = [1 None, 2 Unobs]  | 1 = Start FR       .30 |
+^LStim  = 1  \| (1) = Ratio Requirement  | 2 = Deliver Pellet .20 |
+^RStim  = 2  \| (2) = FR Pointer (Flush) | 3 = Begin Blackout .40 |
+^Pellet = 3  \| (3) = Pellets            | 4 = End Blackout   .41 |
+^HL     = 7  \| (4) = UnObservs          | 5 = Left for Tone      | 
+Dim A   = 6 \------------------------------------------------------
+Dim C   = 10000
+    DISKCOLUMNS =   1                       
+    DISKVARS    =   A, C                    
+S.S.1,\======================================================================================================
+    S1,\----------------------------------------- FR Training
+        #K1:  Set A(0)=1, A(1)=5   ---> S2
+        #K2:  Set A(0)=1, A(1)=10  ---> S2
+        #K3:  Set A(0)=1, A(1)=15  ---> S2
+        #K4:  Set A(0)=1, A(1)=20  ---> S2
+      \------------------------------------------ Unobserving Procedure
+        #K5:  Set A(0)=2, A(1)=25  ---> S2
+        #K6:  Set A(0)=2, A(1)=50  ---> S2
+        #K7:  Set A(0)=2, A(1)=75  ---> S2
+        #K8:  Set A(0)=2, A(1)=100 ---> S2
+        #K9:  Set A(0)=2, A(1)=150 ---> S2
+        #K10: Set A(0)=2, A(1)=200 ---> S2
+        #K11: Set A(0)=2, A(1)=250 ---> S2
+        #K12: Set A(0)=2, A(1)=300 ---> S2
+        #K13: Set A(0)=2, A(1)=350 ---> S2
+    S2,\---------------------------------------------------------------- 30-s Warm Up
+        30": ~InitANL926;~;~SetFreq(MG, BOX, 3302);~;
+             ~SetAmp(MG, BOX, 90);~;
+             ~SetRF(MG, BOX, 10);~; On^HL,^LStim; If A(0)=2 [@UnOb,@nope]
+                                         @UnOb: On^RStim; Z1 ---> S3
+                                         @Nope:           Z1 ---> S3
+    S3,\---------------------------------------------------------------- FR and Unob
+        #R^LLever: ADD A(2);Set C(i) = T+.12; Add i; If A(2)=A(1) [@Pell,@Nope]
+            @Pell: Set A(2)=0; ADD A(3);
+                   On^Pellet; Off^LStim,^RStim;    Z2 ---> S5
+            @Nope:                                 Z5 ---> SX
+        #R^RLever: Set C(i) = T+.13; Add i; If A(0)=2 [@UnOb,@Nope]
+            @UnOb: Off^HL,^LStim,^RStim; ADD A(4); Z3 ---> S4
+            @Nope:                                    ---> SX
+    S4,\---------------------------------------------------------------- Blackout
+        30": On^HL,^LStim,^RStim; Z4 ---> S3
+        #R^LLever: Set C(i) = T+.10; Add i ---> SX 
+        #R^RLever: Set C(i) = T+.11; Add i ---> SX
+    S5,\---------------------------------------------------------------- Pellet Delivery
+        .05": Off^Pellet ---> S6
+    S6,\---------------------------------------------------------------- 2-s Buffer
+        2": On^HL,^LStim; If A(0)=2 [@UnOb,@nope]
+            @UnOb: On^RStim; Z1 ---> S3
+            @Nope:           Z1 ---> S3
+S.S.2,\======================================================================================================
+    S1,
+        #Z2: ~ToneOn (MG, Box);~  ---> S2
+        #Z3: ~ToneOn (MG, Box);~  ---> S2
+        #Z5: ~ToneOn (MG, Box);~  ---> S2
+    S2,
+        .1": ~ToneOff(MG, Box);~ ---> S1
+S.S.3,\======================================================================================================
+    S1,
+        #Z1: ---> S2
+    S2,
+        .01": ADD T; If (T/6000 >=90) or (A(3)>=75) [@Done,@Stay]
+            @Done: Set C(i) = -987.987, A(0)=A(0)*-1, A(1)=A(1)*-1, 
+                                        A(2)=A(2)*-1, A(3)=A(3)*-1, A(4)=A(4)*-1 ---> STOPABORTFLUSH 
+            @Stay: Show 1, T[m],    T/6000; 
+                   Show 2, FR,      A(1);
+                   Show 3, Pellets, A(3);
+                   Show 4, Unobs,   A(4) ---> SX
+S.S.4,\======================================================================================================
+    S1,
+        #Z1:       Set C(i) = T+.30; Add i ---> S2
+    S2,    
+        #Z1:       Set C(i) = T+.30; Add i ---> SX \| Start FR
+        #Z2:       Set C(i) = T+.20; Add i ---> SX \| Pellet Delivery
+        #Z3:       Set C(i) = T+.40; Add i ---> SX \| Begin Blackout
+        #Z4:       Set C(i) = T+.41; Add i ---> SX \| End Blackout
+\============================================================================================================ ---> END PROGRAM
+                                             
